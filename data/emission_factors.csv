@@ -1,0 +1,9 @@
+category,sub_category,unit,co2_per_unit
+electricity,grid,kWh,0.82
+transport,petrol,km,0.192
+transport,diesel,km,0.171
+transport,public_transport,km,0.041
+food,veg,meal,1.7
+food,mixed,meal,2.5
+food,non_veg,meal,3.3
+waste,mixed,kg,1.9
