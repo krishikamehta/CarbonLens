@@ -1,3 +1,4 @@
+import os
 import pandas as pd
 
 _EMISSION_FACTORS = None
@@ -11,7 +12,11 @@ def load_emission_factors():
     global _EMISSION_FACTORS
 
     if _EMISSION_FACTORS is None:
-        _EMISSION_FACTORS = pd.read_csv("data/emission_factors.csv")
+        # Get absolute path to project root
+        BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        DATA_PATH = os.path.join(BASE_DIR, "data", "emission_factors.csv")
+
+        _EMISSION_FACTORS = pd.read_csv(DATA_PATH)
 
     return _EMISSION_FACTORS
 
