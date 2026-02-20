@@ -9,27 +9,20 @@ from typing import List
 from datetime import datetime
 
 Base.metadata.create_all(bind=engine)
-
-
 app = FastAPI(title="CarbonLens API")
 
-
-# ---------- ENUMS ----------
-
+# ---------- ENUMS & MODELS ----------
 class TransportMode(str, Enum):
     petrol = "petrol"
     diesel = "diesel"
     public_transport = "public_transport"
-
 
 class DietType(str, Enum):
     veg = "veg"
     mixed = "mixed"
     non_veg = "non_veg"
 
-
 # ---------- REQUEST MODEL ----------
-
 class FootprintRequest(BaseModel):
     name: str
     email: str
@@ -41,10 +34,7 @@ class FootprintRequest(BaseModel):
     meals_per_month: float = Field(..., ge=0)
     waste_kg: float = Field(..., ge=0)
 
-
-
 # ---------- RESPONSE MODEL ----------
-
 class FootprintResponse(BaseModel):
     electricity: float
     transport: float
@@ -74,10 +64,60 @@ class UserAnalytics(BaseModel):
     latest_footprint: float
     trend: str
 
+# Recommendation Response Model
+class RecommendationResponse(BaseModel):
+    dominant_category: str
+    recommendations: List[str]
 
+#helper function to determine dominant category and generate recommendations
+def generate_recommendations(footprint: Footprint):
+
+    categories = {
+        "electricity": footprint.electricity,
+        "transport": footprint.transport,
+        "food": footprint.food,
+        "waste": footprint.waste
+    }
+
+    dominant_category = max(categories, key=categories.get)
+
+    recommendations = []
+
+    if dominant_category == "electricity":
+        recommendations.extend([
+            "Switch to LED lighting.",
+            "Use energy-efficient appliances.",
+            "Turn off devices when not in use.",
+            "Consider installing solar panels."
+        ])
+
+    elif dominant_category == "transport":
+        recommendations.extend([
+            "Use public transport more frequently.",
+            "Consider carpooling.",
+            "Switch to electric or hybrid vehicles.",
+            "Reduce unnecessary travel."
+        ])
+
+    elif dominant_category == "food":
+        recommendations.extend([
+            "Reduce red meat consumption.",
+            "Adopt more plant-based meals.",
+            "Buy locally sourced food.",
+            "Avoid food waste."
+        ])
+
+    elif dominant_category == "waste":
+        recommendations.extend([
+            "Start composting organic waste.",
+            "Recycle properly.",
+            "Reduce single-use plastics.",
+            "Practice mindful consumption."
+        ])
+
+    return dominant_category, recommendations
 
 # ---------- ENDPOINT ----------
-
 @app.post("/calculate", response_model=FootprintResponse)
 def calculate(request: FootprintRequest, db: Session = Depends(get_db)):
 
@@ -97,11 +137,7 @@ def calculate(request: FootprintRequest, db: Session = Depends(get_db)):
             db.commit()
             db.refresh(user)
 
-        
-
         result = calculate_total_footprint(data)
-
-       
 
         footprint = Footprint(
             user_id=user.id,
@@ -190,3 +226,30 @@ def get_user_analytics(email: str, db: Session = Depends(get_db)):
         "trend": trend
     }
 
+@app.get("/users/{email}/recommendations", response_model=RecommendationResponse)
+def get_recommendations(email: str, db: Session = Depends(get_db)):
+
+    # 1️⃣ Find user
+    user = db.query(User).filter(User.email == email).first()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # 2️⃣ Get latest footprint
+    latest_footprint = (
+        db.query(Footprint)
+        .filter(Footprint.user_id == user.id)
+        .order_by(Footprint.created_at.desc())
+        .first()
+    )
+
+    if not latest_footprint:
+        raise HTTPException(status_code=404, detail="No footprint records found")
+
+    # 3️⃣ Generate recommendations
+    dominant_category, recommendations = generate_recommendations(latest_footprint)
+
+    return {
+        "dominant_category": dominant_category,
+        "recommendations": recommendations
+    }
