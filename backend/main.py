@@ -1,14 +1,12 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends
 from pydantic import BaseModel, Field
 from enum import Enum
 from carbon_calculator import calculate_total_footprint
-from database import engine
-from models import Base
-from fastapi import Depends
+from database import engine, get_db
 from sqlalchemy.orm import Session
-from database import get_db
-from models import User, Footprint
-
+from models import User, Footprint, Base
+from typing import List
+from datetime import datetime
 
 Base.metadata.create_all(bind=engine)
 
@@ -53,6 +51,19 @@ class FootprintResponse(BaseModel):
     food: float
     waste: float
     total: float
+
+
+class FootprintHistoryItem(BaseModel):
+    id: int
+    electricity: float
+    transport: float
+    food: float
+    waste: float
+    total: float
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
 
 
 # ---------- ENDPOINT ----------
@@ -102,6 +113,23 @@ def calculate(request: FootprintRequest, db: Session = Depends(get_db)):
 
 @app.get("/")
 def root():
-    return {"message": "CarbonLens API is running"}
+    return {"message": "CarbonLens API is running 🚀"}
+
+@app.get("/users/{email}/footprints", response_model=List[FootprintHistoryItem])
+def get_user_footprints(email: str, db: Session = Depends(get_db)):
+
+    user = db.query(User).filter(User.email == email).first()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    footprints = (
+        db.query(Footprint)
+        .filter(Footprint.user_id == user.id)
+        .order_by(Footprint.created_at.desc())
+        .all()
+    )
+
+    return footprints
 
 
