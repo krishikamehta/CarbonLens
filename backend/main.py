@@ -2,6 +2,11 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from enum import Enum
 from carbon_calculator import calculate_total_footprint
+from database import engine
+from models import Base
+
+Base.metadata.create_all(bind=engine)
+
 
 app = FastAPI(title="CarbonLens API")
 
