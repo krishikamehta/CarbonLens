@@ -52,7 +52,7 @@ class FootprintResponse(BaseModel):
     waste: float
     total: float
 
-
+# history endpoint response model
 class FootprintHistoryItem(BaseModel):
     id: int
     electricity: float
@@ -64,6 +64,16 @@ class FootprintHistoryItem(BaseModel):
 
     class Config:
         from_attributes = True
+
+# analytics endpoint response model
+class UserAnalytics(BaseModel):
+    total_records: int
+    average_footprint: float
+    highest_footprint: float
+    lowest_footprint: float
+    latest_footprint: float
+    trend: str
+
 
 
 # ---------- ENDPOINT ----------
@@ -132,4 +142,51 @@ def get_user_footprints(email: str, db: Session = Depends(get_db)):
 
     return footprints
 
+@app.get("/users/{email}/analytics", response_model=UserAnalytics)
+def get_user_analytics(email: str, db: Session = Depends(get_db)):
+
+    # 1️⃣ Find user
+    user = db.query(User).filter(User.email == email).first()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # 2️⃣ Get all footprints sorted by date
+    footprints = (
+        db.query(Footprint)
+        .filter(Footprint.user_id == user.id)
+        .order_by(Footprint.created_at.asc())
+        .all()
+    )
+
+    if not footprints:
+        raise HTTPException(status_code=404, detail="No footprint records found")
+
+    totals = [f.total for f in footprints]
+
+    total_records = len(totals)
+    average = sum(totals) / total_records
+    highest = max(totals)
+    lowest = min(totals)
+    latest = totals[-1]
+
+    # 3️⃣ Determine trend
+    if total_records < 2:
+        trend = "insufficient data"
+    else:
+        if totals[-1] > totals[-2]:
+            trend = "increasing"
+        elif totals[-1] < totals[-2]:
+            trend = "decreasing"
+        else:
+            trend = "stable"
+
+    return {
+        "total_records": total_records,
+        "average_footprint": round(average, 2),
+        "highest_footprint": highest,
+        "lowest_footprint": lowest,
+        "latest_footprint": latest,
+        "trend": trend
+    }
 
