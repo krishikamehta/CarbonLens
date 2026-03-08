@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import FeatureCard from "../components/FeatureCard";
 
 export default function Home() {
@@ -15,6 +16,13 @@ export default function Home() {
           Track emissions, simulate lifestyle changes,
           and discover impactful ways to reduce your footprint.
         </p>
+
+        <Link
+          to="/login"
+          className="inline-block mt-8 bg-white text-green-800 px-6 py-3 rounded font-semibold hover:bg-gray-100"
+        >
+          Get Started
+        </Link>
 
       </section>
 
@@ -37,6 +45,7 @@ export default function Home() {
         />
 
       </section>
+
     </div>
   );
 }
