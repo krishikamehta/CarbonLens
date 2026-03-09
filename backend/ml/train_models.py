@@ -38,6 +38,19 @@ def train_models(csv_path):
 
         models[target] = model
 
+        importances = model.feature_importances_
+
+        feature_importance = sorted(
+            zip(X.columns, importances),
+            key=lambda x: x[1],
+            reverse=True
+        )
+
+        print("\nTop Influencing Features:")
+
+        for feature, score in feature_importance[:5]:
+            print(f"{feature}: {score:.3f}")
+
         # save model
         joblib.dump(model, f"backend/ml/{target}_model.pkl")
 
