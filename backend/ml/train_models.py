@@ -1,5 +1,5 @@
 import joblib
-from sklearn.linear_model import LinearRegression
+from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_absolute_error, r2_score
 
@@ -17,7 +17,10 @@ def train_models(csv_path):
 
     for target in y.columns:
 
-        model = LinearRegression()
+        model = RandomForestRegressor(
+        n_estimators=100,
+        random_state=42
+        )
 
         # train
         model.fit(X_train, y_train[target])
