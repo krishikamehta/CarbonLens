@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException, Depends
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from enum import Enum
 from carbon_calculator import calculate_total_footprint
@@ -7,22 +8,58 @@ from sqlalchemy.orm import Session
 from models import User, Footprint, Base
 from typing import List
 from datetime import datetime
+from pydantic import EmailStr, Field
+
 
 Base.metadata.create_all(bind=engine)
+
 app = FastAPI(title="CarbonLens API")
 
-# ---------- ENUMS & MODELS ----------
+# ---------- CORS (IMPORTANT FOR FRONTEND) ----------
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # allow React frontend
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# ---------- ENUMS ----------
+
 class TransportMode(str, Enum):
     petrol = "petrol"
     diesel = "diesel"
     public_transport = "public_transport"
+
 
 class DietType(str, Enum):
     veg = "veg"
     mixed = "mixed"
     non_veg = "non_veg"
 
-# ---------- REQUEST MODEL ----------
+
+# ---------- AUTH MODELS ----------
+
+class RegisterRequest(BaseModel):
+    name: str
+    email: EmailStr
+    password: str = Field(min_length=6)
+
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+
+class AuthResponse(BaseModel):
+    id: int
+    name: str
+    email: str
+
+
+# ---------- FOOTPRINT REQUEST ----------
+
 class FootprintRequest(BaseModel):
     name: str
     email: str
@@ -34,7 +71,9 @@ class FootprintRequest(BaseModel):
     meals_per_month: float = Field(..., ge=0)
     waste_kg: float = Field(..., ge=0)
 
-# ---------- RESPONSE MODEL ----------
+
+# ---------- FOOTPRINT RESPONSE ----------
+
 class FootprintResponse(BaseModel):
     electricity: float
     transport: float
@@ -42,7 +81,9 @@ class FootprintResponse(BaseModel):
     waste: float
     total: float
 
-# history endpoint response model
+
+# ---------- HISTORY MODEL ----------
+
 class FootprintHistoryItem(BaseModel):
     id: int
     electricity: float
@@ -55,7 +96,9 @@ class FootprintHistoryItem(BaseModel):
     class Config:
         from_attributes = True
 
-# analytics endpoint response model
+
+# ---------- ANALYTICS MODEL ----------
+
 class UserAnalytics(BaseModel):
     total_records: int
     average_footprint: float
@@ -64,12 +107,16 @@ class UserAnalytics(BaseModel):
     latest_footprint: float
     trend: str
 
-# Recommendation Response Model
+
+# ---------- RECOMMENDATION MODEL ----------
+
 class RecommendationResponse(BaseModel):
     dominant_category: str
     recommendations: List[str]
 
-#helper function to determine dominant category and generate recommendations
+
+# ---------- RECOMMENDATION LOGIC ----------
+
 def generate_recommendations(footprint: Footprint):
 
     categories = {
@@ -117,49 +164,74 @@ def generate_recommendations(footprint: Footprint):
 
     return dominant_category, recommendations
 
-# ---------- ENDPOINT ----------
+
+# ---------- AUTH ENDPOINTS ----------
+
+@app.post("/register", response_model=AuthResponse)
+def register(request: RegisterRequest, db: Session = Depends(get_db)):
+
+    existing_user = db.query(User).filter(User.email == request.email).first()
+
+    if existing_user:
+        raise HTTPException(status_code=400, detail="Email already registered")
+
+    user = User(
+        name=request.name,
+        email=request.email,
+        password=request.password
+    )
+
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+
+    return user
+
+
+@app.post("/login", response_model=AuthResponse)
+def login(request: LoginRequest, db: Session = Depends(get_db)):
+
+    user = db.query(User).filter(User.email == request.email).first()
+
+    if not user or user.password != request.password:
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+
+    return user
+
+
+# ---------- CARBON CALCULATION ----------
+
 @app.post("/calculate", response_model=FootprintResponse)
 def calculate(request: FootprintRequest, db: Session = Depends(get_db)):
 
-    try:
-        data = request.dict()
+    data = request.dict()
 
-        # Convert enums to strings
-        data["transport_mode"] = data["transport_mode"].value
-        data["diet_type"] = data["diet_type"].value
+    data["transport_mode"] = data["transport_mode"].value
+    data["diet_type"] = data["diet_type"].value
 
+    user = db.query(User).filter(User.email == request.email).first()
 
-        user = db.query(User).filter(User.email == request.email).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
 
-        if not user:
-            user = User(name=request.name, email=request.email)
-            db.add(user)
-            db.commit()
-            db.refresh(user)
+    result = calculate_total_footprint(data)
 
-        result = calculate_total_footprint(data)
+    footprint = Footprint(
+        user_id=user.id,
+        electricity=result["electricity"],
+        transport=result["transport"],
+        food=result["food"],
+        waste=result["waste"],
+        total=result["total"],
+    )
 
-        footprint = Footprint(
-            user_id=user.id,
-            electricity=result["electricity"],
-            transport=result["transport"],
-            food=result["food"],
-            waste=result["waste"],
-            total=result["total"],
-        )
+    db.add(footprint)
+    db.commit()
 
-        db.add(footprint)
-        db.commit()
-
-        return result
-
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    return result
 
 
-@app.get("/")
-def root():
-    return {"message": "CarbonLens API is running 🚀"}
+# ---------- HISTORY ----------
 
 @app.get("/users/{email}/footprints", response_model=List[FootprintHistoryItem])
 def get_user_footprints(email: str, db: Session = Depends(get_db)):
@@ -178,16 +250,17 @@ def get_user_footprints(email: str, db: Session = Depends(get_db)):
 
     return footprints
 
+
+# ---------- ANALYTICS ----------
+
 @app.get("/users/{email}/analytics", response_model=UserAnalytics)
 def get_user_analytics(email: str, db: Session = Depends(get_db)):
 
-    # 1️⃣ Find user
     user = db.query(User).filter(User.email == email).first()
 
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    # 2️⃣ Get all footprints sorted by date
     footprints = (
         db.query(Footprint)
         .filter(Footprint.user_id == user.id)
@@ -206,10 +279,8 @@ def get_user_analytics(email: str, db: Session = Depends(get_db)):
     lowest = min(totals)
     latest = totals[-1]
 
-    # 3️⃣ Determine trend
-    if total_records < 2:
-        trend = "insufficient data"
-    else:
+    trend = "insufficient data"
+    if total_records >= 2:
         if totals[-1] > totals[-2]:
             trend = "increasing"
         elif totals[-1] < totals[-2]:
@@ -226,16 +297,17 @@ def get_user_analytics(email: str, db: Session = Depends(get_db)):
         "trend": trend
     }
 
+
+# ---------- RECOMMENDATIONS ----------
+
 @app.get("/users/{email}/recommendations", response_model=RecommendationResponse)
 def get_recommendations(email: str, db: Session = Depends(get_db)):
 
-    # 1️⃣ Find user
     user = db.query(User).filter(User.email == email).first()
 
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    # 2️⃣ Get latest footprint
     latest_footprint = (
         db.query(Footprint)
         .filter(Footprint.user_id == user.id)
@@ -246,10 +318,16 @@ def get_recommendations(email: str, db: Session = Depends(get_db)):
     if not latest_footprint:
         raise HTTPException(status_code=404, detail="No footprint records found")
 
-    # 3️⃣ Generate recommendations
     dominant_category, recommendations = generate_recommendations(latest_footprint)
 
     return {
         "dominant_category": dominant_category,
         "recommendations": recommendations
     }
+
+
+# ---------- ROOT ----------
+
+@app.get("/")
+def root():
+    return {"message": "CarbonLens API is running"}
