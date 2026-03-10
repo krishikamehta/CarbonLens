@@ -1,0 +1,6 @@
+age,gender,education_level,occupation,living_situation,electricity_kwh,weekly_transport_km,primary_transport_mode,non_veg_meals_per_week,food_order_frequency,waste_kg_per_week,reduce_electricity_habit,public_transport_habit,veg_preference_habit,plastic_reduction_habit,waste_segregation,climate_concern,past_attempt,willing_electricity_reduction,willing_transport_shift,willing_diet_reduction,willing_waste_reduction
+21,Male,Undergraduate,Student,Hostel,120,40,Public transport,3,1–2,2,Sometimes,Sometimes,Rarely,Sometimes,No,Very concerned,Yes,Probably Yes,Probably Yes,Neutral,Probably Yes
+24,Female,Undergraduate,Student,Shared apartment,180,25,Two-wheeler,4,3–5,3,Rarely,Rarely,Rarely,Rarely,No,Moderately concerned,No,Neutral,Probably No,Probably No,Neutral
+30,Male,Postgraduate,Office professional,Living with family,260,80,Personal petrol vehicle,5,3–5,4,Sometimes,Rarely,Rarely,Rarely,No,Very concerned,Yes,Probably Yes,Probably No,Probably No,Neutral
+28,Female,Postgraduate,Remote worker,Living alone,320,10,Walking / cycling,2,1–2,2,Often,Often,Often,Often,Yes,Extremely concerned,Yes,Definitely Yes,Probably Yes,Probably Yes,Definitely Yes
+35,Male,Postgraduate,Business owner,Living with family,400,60,Personal diesel vehicle,6,6+,5,Rarely,Never,Never,Rarely,No,Moderately concerned,No,Probably No,Probably No,Probably No,Neutral
