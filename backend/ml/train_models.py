@@ -57,4 +57,4 @@ def train_models(csv_path):
     print("\nTraining complete. Models saved.")
 
 if __name__ == "__main__":
-    train_models("data/survey_data.csv")
+    train_models("data/dummy_data.csv")
